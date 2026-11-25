@@ -1,0 +1,25 @@
+# Dependencies and generated build output must be installed/built on each platform.
+node_modules/
+dist/
+dist-check-frontend/
+scripts/*-check.png
+.vercel/
+
+# Local configuration, logs, and temporary validation workspaces.
+.env
+.env.*
+!.env.example
+*.log
+.tmp/
+.data/
+.firebase/
+.impeccable/
+/audit/
+/lucide-react-*.tgz
+*.sqlite
+*.sqlite-*
+*firebase-adminsdk*.json
+motion/*/frames/
+motion/*/curves/
+
+.vercel

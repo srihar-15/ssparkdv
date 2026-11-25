@@ -1,0 +1,762 @@
+/* Scroll Product Hero — horizontal auto-advancing product showcase (Right-to-Left) with natural page scrolling */
+
+.scroll-product-hero-root {
+  position: relative;
+  width: 100%;
+  height: 100vh;
+  height: 100svh;
+  min-height: 640px;
+  overflow: hidden;
+  background: #567364;
+  outline: none;
+}
+
+.scroll-product-hero-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  user-select: none;
+}
+
+/* Background layers for smooth GPU crossfade */
+.scroll-hero-bg-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  transition: opacity 0.5s ease;
+  will-change: opacity;
+}
+
+.scroll-hero-bg-layer-incoming {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0;
+  transition: opacity 0.76s ease-in-out;
+  will-change: opacity;
+}
+
+.scroll-hero-bg-layer-incoming.fade-in {
+  opacity: 1;
+}
+
+/* Header spacer inside container so top controls don't overlap header */
+.scroll-hero-header-spacer {
+  height: clamp(74px, 9vh, 90px);
+  width: 100%;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+/* Giant background typography */
+.scroll-hero-typography {
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1;
+  pointer-events: none;
+  font-family: var(--font-dm-sans, "DM Sans", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif);
+  font-weight: 700;
+  font-size: clamp(32px, 5.8vw, 96px);
+  letter-spacing: clamp(2px, 0.08em, 8px);
+  text-transform: uppercase;
+  line-height: 1;
+  white-space: nowrap;
+  width: 100%;
+  padding-inline: clamp(12px, 3vw, 40px);
+  box-sizing: border-box;
+}
+
+.scroll-hero-text-left {
+  flex: 1;
+  text-align: right;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.scroll-hero-text-left span {
+  display: inline-block;
+  transition: color 0.4s ease;
+  will-change: color;
+}
+
+.scroll-hero-text-gap {
+  width: clamp(280px, 34vw, 520px);
+  flex-shrink: 0;
+}
+
+.scroll-hero-text-right {
+  flex: 1;
+  text-align: left;
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.scroll-hero-right-word {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  white-space: nowrap;
+  will-change: transform, opacity;
+}
+
+.scroll-hero-right-word.word-active {
+  transform: translateY(-50%) translateX(0);
+  opacity: 1;
+  visibility: visible;
+}
+
+.scroll-hero-right-word.word-idle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+}
+
+/* Typography Horizontal Animations */
+@keyframes wordSlideInFromRight {
+  0% {
+    transform: translateY(-50%) translateX(70px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes wordSlideOutToLeft {
+  0% {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50%) translateX(-70px);
+    opacity: 0;
+  }
+}
+
+@keyframes wordSlideInFromLeft {
+  0% {
+    transform: translateY(-50%) translateX(-70px);
+    opacity: 0;
+  }
+  100% {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes wordSlideOutToRight {
+  0% {
+    transform: translateY(-50%) translateX(0);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(-50%) translateX(70px);
+    opacity: 0;
+  }
+}
+
+.scroll-hero-right-word.word-enter-from-right {
+  animation: wordSlideInFromRight 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+}
+
+.scroll-hero-right-word.word-exit-to-left {
+  animation: wordSlideOutToLeft 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+}
+
+.scroll-hero-right-word.word-enter-from-left {
+  animation: wordSlideInFromLeft 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+}
+
+.scroll-hero-right-word.word-exit-to-right {
+  animation: wordSlideOutToRight 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+}
+
+/* Central stage for product and spotlight */
+.scroll-hero-stage {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(96vw, 920px);
+  height: clamp(520px, 78vh, 780px);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 3;
+  pointer-events: none;
+}
+
+/* Studio spotlight behind the product to highlight and make it pop */
+.scroll-hero-spotlight {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: clamp(450px, 58vw, 820px);
+  height: clamp(450px, 58vw, 820px);
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(255, 255, 255, 0.45) 0%, rgba(255, 255, 255, 0.18) 38%, rgba(255, 255, 255, 0) 72%);
+  pointer-events: none;
+  z-index: 1;
+  filter: blur(25px);
+  mix-blend-mode: screen;
+}
+
+/* Soft ambient floating ground shadow underneath the product */
+.scroll-hero-ambient-shadow {
+  position: absolute;
+  bottom: clamp(10%, 14vh, 18%);
+  left: 50%;
+  transform: translateX(-50%);
+  width: clamp(200px, 26vw, 360px);
+  height: clamp(18px, 2.4vw, 30px);
+  background: radial-gradient(ellipse at 50% 50%, rgba(0, 0, 0, 0.45) 0%, rgba(0, 0, 0, 0.18) 48%, transparent 72%);
+  border-radius: 50%;
+  filter: blur(12px);
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Product wrapper centered in viewport */
+.scroll-hero-product-viewport {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  z-index: 2;
+  pointer-events: auto;
+}
+
+.scroll-hero-product-item {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  will-change: transform, opacity;
+}
+
+.scroll-hero-product-item.slide-active {
+  transform: translate(-50%, -50%) scale(1);
+  opacity: 1;
+  visibility: visible;
+  pointer-events: auto;
+  z-index: 5;
+}
+
+.scroll-hero-product-item.slide-idle {
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  z-index: 1;
+}
+
+/* Horizontal Gliding Keyframe Animations (Right-to-Left and Left-to-Right) */
+@keyframes heroSlideInFromRight {
+  0% {
+    transform: translate(calc(-50% + 46vw), -50%) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes heroSlideOutToLeft {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% - 46vw), -50%) scale(0.9);
+    opacity: 0;
+  }
+}
+
+@keyframes heroSlideInFromLeft {
+  0% {
+    transform: translate(calc(-50% - 46vw), -50%) scale(0.9);
+    opacity: 0;
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+}
+
+@keyframes heroSlideOutToRight {
+  0% {
+    transform: translate(-50%, -50%) scale(1);
+    opacity: 1;
+  }
+  100% {
+    transform: translate(calc(-50% + 46vw), -50%) scale(0.9);
+    opacity: 0;
+  }
+}
+
+.scroll-hero-product-item.anim-enter-from-right {
+  animation: heroSlideInFromRight 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.scroll-hero-product-item.anim-exit-to-left {
+  animation: heroSlideOutToLeft 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.scroll-hero-product-item.anim-enter-from-left {
+  animation: heroSlideInFromLeft 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+  z-index: 5;
+  pointer-events: auto;
+}
+
+.scroll-hero-product-item.anim-exit-to-right {
+  animation: heroSlideOutToRight 0.75s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  visibility: visible;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.scroll-hero-product-item a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  outline: none;
+  cursor: pointer;
+}
+
+.scroll-hero-product-img {
+  display: block;
+  height: auto;
+  width: auto;
+  object-fit: contain;
+  filter: drop-shadow(0 28px 45px rgba(0, 0, 0, 0.42)) drop-shadow(0 10px 22px rgba(0, 0, 0, 0.28));
+  transition: transform 0.35s cubic-bezier(0.16, 1, 0.3, 1), filter 0.35s ease;
+  pointer-events: auto;
+}
+
+.scroll-hero-product-item a:hover .scroll-hero-product-img {
+  transform: scale(1.04) translateY(-6px);
+  filter: drop-shadow(0 38px 58px rgba(0, 0, 0, 0.52)) drop-shadow(0 14px 28px rgba(0, 0, 0, 0.34));
+}
+
+/* Specific product image proportions for balance */
+.hero-img-tube {
+  max-height: clamp(480px, 68vh, 660px);
+  max-width: clamp(340px, 42vw, 540px);
+}
+
+.hero-img-bottle {
+  max-height: clamp(480px, 68vh, 660px);
+  max-width: clamp(320px, 38vw, 500px);
+}
+
+.hero-img-square {
+  max-height: clamp(440px, 62vh, 600px);
+  max-width: clamp(340px, 42vw, 520px);
+}
+
+.hero-img-wide {
+  max-height: clamp(420px, 58vh, 560px);
+  max-width: clamp(360px, 46vw, 560px);
+}
+
+/* Subtle Left & Right Arrow Navigation Controls */
+.scroll-hero-nav-arrow {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.24);
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 20;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: auto;
+  outline: none;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
+}
+
+.scroll-hero-nav-arrow:hover {
+  background: rgba(255, 255, 255, 0.28);
+  border-color: rgba(255, 255, 255, 0.55);
+  transform: translateY(-50%) scale(1.08);
+  box-shadow: 0 6px 22px rgba(0, 0, 0, 0.28);
+}
+
+.scroll-hero-nav-arrow:active {
+  transform: translateY(-50%) scale(0.96);
+}
+
+.scroll-hero-nav-prev {
+  left: clamp(14px, 2.5vw, 36px);
+}
+
+.scroll-hero-nav-next {
+  right: clamp(14px, 2.5vw, 36px);
+}
+
+/* Slide Indicator Container placed cleanly at the bottom */
+.scroll-hero-indicator-container {
+  position: absolute;
+  bottom: clamp(22px, 3.8vh, 38px);
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  z-index: 15;
+  pointer-events: auto;
+}
+
+.scroll-hero-indicators {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  max-width: 90vw;
+  flex-wrap: wrap;
+}
+
+.scroll-hero-indicator-bar {
+  width: 16px;
+  height: 4.5px;
+  border-radius: 9999px;
+  border: 0;
+  padding: 0;
+  background: rgba(255, 255, 255, 0.35);
+  cursor: pointer;
+  transition: width 0.35s cubic-bezier(0.16, 1, 0.3, 1),
+              background 0.3s ease,
+              transform 0.2s ease,
+              box-shadow 0.3s ease;
+  outline: none;
+}
+
+.scroll-hero-indicator-bar:hover {
+  background: rgba(255, 255, 255, 0.65);
+  transform: scaleY(1.3);
+}
+
+.scroll-hero-indicator-bar.active {
+  width: 44px;
+  background: rgba(255, 255, 255, 0.35);
+  box-shadow: 0 0 12px rgba(255, 255, 255, 0.4);
+  position: relative;
+  overflow: hidden;
+}
+
+.scroll-hero-indicator-bar.active::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  width: 100%;
+  background: #ffffff;
+  border-radius: 9999px;
+  transform-origin: left;
+  animation: heroTimerBar 3.2s linear forwards;
+}
+
+@keyframes heroTimerBar {
+  0% {
+    transform: scaleX(0);
+  }
+  100% {
+    transform: scaleX(1);
+  }
+}
+
+.scroll-hero-indicator-bar:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+.scroll-hero-slide-counter {
+  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-size: 11px;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.65);
+  letter-spacing: 0.08em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.scroll-hero-slide-counter-divider {
+  opacity: 0.4;
+}
+
+/* Bottom corner navigation & actions */
+.scroll-hero-bottom-bar {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 clamp(24px, 4.5vw, 64px) clamp(24px, 3.8vh, 44px);
+  box-sizing: border-box;
+  pointer-events: none;
+}
+
+.scroll-hero-bottom-bar > * {
+  pointer-events: auto;
+}
+
+/* Bottom left "Scroll to explore ↓" */
+.scroll-hero-explore-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 0;
+  padding: 8px 0;
+  color: #ffffff;
+  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-size: clamp(13px, 1.1vw, 15px);
+  font-weight: 500;
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  opacity: 0.92;
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.scroll-hero-explore-btn:hover {
+  opacity: 1;
+  transform: translateY(2px);
+}
+
+.scroll-hero-explore-arrow {
+  display: inline-block;
+  font-size: 15px;
+  line-height: 1;
+  animation: scrollHeroBob 2.2s ease-in-out infinite;
+}
+
+@keyframes scrollHeroBob {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(4px);
+  }
+}
+
+/* Bottom right "View product ↗" pill */
+.scroll-hero-view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: #0b1320;
+  color: #ffffff;
+  font-family: var(--font-dm-sans, "DM Sans", sans-serif);
+  font-size: clamp(13px, 1.05vw, 15px);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+  padding: 12px 24px;
+  border-radius: 9999px;
+  text-decoration: none;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.28);
+  transition: background 0.22s ease, transform 0.22s ease, box-shadow 0.22s ease;
+}
+
+.scroll-hero-view-btn:hover {
+  background: #152238;
+  transform: translateY(-2px);
+  box-shadow: 0 8px 26px rgba(0, 0, 0, 0.38);
+}
+
+.scroll-hero-view-btn:focus-visible {
+  outline: 2px solid #ffffff;
+  outline-offset: 3px;
+}
+
+/* Header overlay styles when on hero */
+.site-header.hero-header-overlay {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  width: 100% !important;
+  background: transparent !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.16) !important;
+  backdrop-filter: blur(3px);
+  box-shadow: none !important;
+  transition: background 0.3s ease, border-color 0.3s ease;
+}
+
+.site-header.hero-header-overlay .text-dock-item > a,
+.site-header.hero-header-overlay .dock-item a,
+.site-header.hero-header-overlay .nav a {
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.site-header.hero-header-overlay .text-dock-item > a:hover,
+.site-header.hero-header-overlay .dock-item a:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #ffffff;
+}
+
+.site-header.hero-header-overlay .cart-trigger {
+  border-color: rgba(255, 255, 255, 0.38);
+  color: #ffffff;
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.site-header.hero-header-overlay .cart-trigger:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(255, 255, 255, 0.55);
+}
+
+.site-header.hero-header-overlay .header-cta {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.42);
+  color: #ffffff;
+  box-shadow: none;
+}
+
+.site-header.hero-header-overlay .header-cta:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.7);
+}
+
+.site-header.hero-header-overlay .menu-button {
+  border-color: rgba(255, 255, 255, 0.38);
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+/* Mobile responsive adjustments */
+@media (max-width: 768px) {
+  .scroll-hero-typography {
+    font-size: clamp(24px, 7.5vw, 44px);
+    letter-spacing: 2px;
+    padding-inline: 16px;
+    top: 50%;
+  }
+
+  .scroll-hero-text-gap {
+    width: clamp(160px, 46vw, 260px);
+  }
+
+  .scroll-hero-stage {
+    width: 96vw;
+    height: clamp(380px, 64vh, 540px);
+    top: 50%;
+  }
+
+  .scroll-hero-product-viewport {
+    padding-bottom: 0;
+  }
+
+  .hero-img-tube {
+    max-height: clamp(280px, 48vh, 380px);
+    max-width: clamp(200px, 54vw, 290px);
+  }
+
+  .hero-img-bottle {
+    max-height: clamp(280px, 48vh, 380px);
+    max-width: clamp(190px, 50vw, 280px);
+  }
+
+  .hero-img-square {
+    max-height: clamp(260px, 44vh, 340px);
+    max-width: clamp(200px, 52vw, 280px);
+  }
+
+  .hero-img-wide {
+    max-height: clamp(240px, 40vh, 320px);
+    max-width: clamp(220px, 56vw, 300px);
+  }
+
+  .scroll-hero-ambient-shadow {
+    bottom: 12%;
+    width: clamp(140px, 36vw, 220px);
+    height: 14px;
+  }
+
+  .scroll-hero-nav-arrow {
+    width: 38px;
+    height: 38px;
+  }
+
+  .scroll-hero-nav-prev {
+    left: 8px;
+  }
+
+  .scroll-hero-nav-next {
+    right: 8px;
+  }
+
+  .scroll-hero-indicator-container {
+    bottom: 18px;
+  }
+
+  .scroll-hero-indicators {
+    gap: 4px;
+  }
+
+  .scroll-hero-indicator-bar {
+    width: 10px;
+    height: 3.5px;
+  }
+
+  .scroll-hero-indicator-bar.active {
+    width: 22px;
+  }
+
+  .scroll-hero-bottom-bar {
+    padding: 0 20px 22px;
+  }
+
+  .scroll-hero-explore-btn {
+    font-size: 13px;
+  }
+
+  .scroll-hero-view-btn {
+    font-size: 13px;
+    padding: 10px 18px;
+  }
+}

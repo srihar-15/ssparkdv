@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "spark-dv-dealatecorp"
+  },
+  "targets": {
+    "spark-dv-dealatecorp": {
+      "hosting": {
+        "store": ["spark-dv-dealatecorp"]
+      },
+      "storage": {
+        "media": ["sparkdv-commerce-media-spark-dv-dealatecorp"]
+      }
+    }
+  }
+}

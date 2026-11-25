@@ -1,0 +1,1598 @@
+import { BrandWordmark, brandText } from '@/components/ui/brand-wordmark';
+import TextRoll from './components/ui/text-roll';
+import CheckoutPage from './CheckoutPage';
+import ScienceGallery from './ScienceGallery';
+import SciencePage from './SciencePage';
+import ContactWithGlobe from './components/ui/contact-with-globe';
+import DistributorPage from './DistributorPage';
+import { CinematicFooter } from './components/ui/motion-footer';
+import UserProfile from './components/ui/user-profile';
+import OrdersPage from './components/orders-page';
+import MercuryLogin from './components/ui/mercury-login';
+import { useAuth } from './components/auth-provider';
+import { CatalogProvider, useCatalog } from './components/catalog-provider';
+import ManagedPage from './components/managed-page';
+import { PreferencesProvider, usePreferences } from './components/preferences-provider';
+import ClinicalChatbot from './components/ui/clinical-chatbot';
+import React, { useEffect, useMemo, useState } from "react";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Dock, DockItem } from './components/ui/dock';
+import {
+  ArrowDown,
+  ArrowLeft,
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Menu,
+  Minus,
+  Plus,
+  Search,
+  SlidersHorizontal,
+  ShoppingBag,
+  ShieldCheck,
+  Sparkles,
+  Stethoscope,
+  User,
+  X,
+} from "lucide-react";
+import { img, money } from "./data.js";
+
+import {
+  NewHome,
+  EditorialPage,
+  SourceArticle,
+  ProductImage,
+  productImageSrc,
+} from "./Editorial";
+import sourceContent from "./source-content.json";
+import productAssets from "./product-assets.json";
+import AdminPanel from './AdminPanel';
+import './cart.css';
+const disclaimer =
+  "Disclaimer: Products listed support oral hygiene and preventive care. Not intended to diagnose, treat, cure, or prevent any disease. Consult a qualified dental professional. For children, use under adult supervision. Keep out of reach of children. Do not swallow.";
+const protocols = [
+  "NSF Toothpaste Usage — Nanion Lite (2%) & Nanion Elite (3%), chairside + home-use",
+  "White Spot Protocol — clinical management of early demineralization",
+  "Orthodontic Protocol — preventive protocol for fixed appliance patients",
+  "Biocem Mixing & Placement — fold-and-press technique",
+  "MARC Crown Prep & Cementation — conservative pediatric crown workflow",
+  "P-Obtura Bio-Activ Obturation — pediatric endodontic handling protocol",
+];
+const faqs = [
+  [
+    "Is NanoSilver Fluoride safe for children?",
+    "Our products are formulated with pediatric safety in mind. Nanion Lite is designed for ages 6+ with adult supervision. Always follow recommended usage and consult your dentist.",
+  ],
+  [
+    "Will it stain my child’s teeth?",
+    "Our formulations are designed to be non-staining compared to in-office SDF treatments. Individual results may vary.",
+  ],
+  [
+    "What if my child swallows the toothpaste?",
+    "Use only a pea-sized amount. Spit out after brushing. If a small amount is accidentally swallowed, it is generally not harmful, but consult your dentist if concerned.",
+  ],
+  [
+    "At what age can my child start using Nanion products?",
+    "Nanion Lite is recommended for ages 6 and above with adult supervision. For younger children, consult your pediatric dentist for personalized guidance.",
+  ],
+  [
+    "Can it help with sensitivity?",
+    "Our formulations include ingredients that support enamel health, which may help with sensitivity. Consult your dentist for persistent sensitivity issues.",
+  ],
+  [
+    "Is Nanion Swish safe for children?",
+    "Nanion Swish can be used by children who can reliably spit (typically 6+). Always supervise and ensure the child does not swallow the rinse.",
+  ],
+];
+const scienceSteps = [
+  [
+    "01",
+    "Antibacterial Action",
+    "NanoSilver particles (10–20nm) disrupt bacterial cell membranes through multiple mechanisms, reducing acid-producing bacteria.",
+  ],
+  [
+    "02",
+    "Biofilm Disruption",
+    "Nano-sized particles penetrate the extracellular matrix of dental biofilm, disrupting its protective structure and allowing better access to the tooth surface.",
+  ],
+  [
+    "03",
+    "Remineralization Support",
+    "Fluoride ions and nano-hydroxyapatite work synergistically to deposit minerals into demineralized enamel. nHA provides a calcium and phosphate reservoir.",
+  ],
+];
+
+function App() {
+  return <CatalogProvider><PreferencesProvider><Storefront /></PreferencesProvider></CatalogProvider>;
+}
+
+function Storefront() {
+  const { status, user } = useAuth();
+  const catalog = useCatalog();
+  if (status === 'loading') return <main className="wrap section" role="status">Loading your customer app…</main>;
+  if (catalog.status === 'loading') return <main className="wrap section" role="status">Loading products…</main>;
+  if (catalog.status === 'error') return <main className="wrap section" role="alert"><h1>Products are unavailable</h1><p>{catalog.error}</p><button type="button" className="button button-dark" onClick={catalog.refresh}>Try again</button></main>;
+  return <CustomerApp key={user?.id || 'guest'} />;
+}
+
+function CustomerApp() {
+  const { products } = useCatalog();
+  const navigate = useNavigate();
+  const loc = useLocation();
+  const { status: authStatus, user: cartUser } = useAuth();
+  const accountLabel = authStatus === 'signed-out' ? 'Sign in' : 'Account';
+  const [menu, setMenu] = useState(false),
+    [cartOpen, setCartOpen] = useState(false),
+    [cart, setCart] = useState([]),
+    [cartVersion, setCartVersion] = useState(0),
+    [cartLoaded, setCartLoaded] = useState(false),
+    [cartError, setCartError] = useState(''),
+    [cartRevision, setCartRevision] = useState(0),
+    [toast, setToast] = useState(""),
+    [scrolled, setScrolled] = useState(false),
+    [pastHero, setPastHero] = useState(false);
+  const cartWriteQueue = React.useRef(Promise.resolve());
+  useEffect(() => {
+    const controller = new AbortController();
+    setCartLoaded(false);
+    setCartError('');
+    fetch('/api/cart', { credentials: 'same-origin', cache: 'no-store', signal: controller.signal })
+      .then(async response => {
+        const data = await response.json().catch(() => null);
+        if (!response.ok || !Array.isArray(data?.items)) throw new Error(data?.error || 'Your cart could not be loaded.');
+        return data.items;
+      })
+      .then(items => {
+        if (controller.signal.aborted) return;
+        setCart(items.flatMap(entry => {
+          const product = products.find(item => item.slug === entry.slug);
+          return product && Number.isInteger(entry.qty) && entry.qty > 0 ? [{ ...product, qty: Math.min(99, entry.qty) }] : [];
+        }));
+        setCartLoaded(true);
+      })
+      .catch(failure => {
+        if (!controller.signal.aborted) setCartError(failure.message || 'Your cart could not be loaded.');
+      });
+    return () => controller.abort();
+  }, [cartUser?.id, cartRevision, products]);
+  useEffect(() => {
+    if (!cartLoaded || cartVersion === 0) return;
+    const items = cart.map(({ slug, qty }) => ({ slug, qty }));
+    cartWriteQueue.current = cartWriteQueue.current.catch(() => {}).then(async () => {
+      const response = await fetch('/api/cart', { method: 'PUT', credentials: 'same-origin', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
+      const data = await response.json().catch(() => null);
+      if (!response.ok) throw new Error(data?.error || 'Your cart could not be saved.');
+      setCartError('');
+    }).catch(failure => setCartError(failure.message || 'Your cart could not be saved.'));
+  }, [cart, cartLoaded, cartVersion]);
+  function completeOrder(items) {
+    const quantities = new Map(items.map(item => [item.slug, item.qty]));
+    setCart(current => current
+      .map(item => ({ ...item, qty: item.qty - (quantities.get(item.slug) ?? 0) }))
+      .filter(item => item.qty > 0));
+    setCartVersion(value => value + 1);
+  }
+  useEffect(() => {
+    if (loc.hash && loc.pathname !== '/login')
+      requestAnimationFrame(() =>
+        document.getElementById(loc.hash.slice(1))?.scrollIntoView(),
+      );
+    else window.scrollTo(0, 0);
+    document
+      .querySelectorAll("details[open]")
+      .forEach((e) => e.removeAttribute("open"));
+    setMenu(false);
+  }, [loc.pathname, loc.hash]);
+  useEffect(() => {
+    const f = () => {
+      if (loc.pathname === "/") {
+        const heroEl = document.querySelector(".scroll-product-hero-root");
+        const isPast = heroEl
+          ? window.scrollY > (heroEl.offsetHeight - window.innerHeight - 40)
+          : window.scrollY > 80;
+        setPastHero(isPast);
+        setScrolled(isPast);
+      } else {
+        setPastHero(true);
+        setScrolled(window.scrollY > 80);
+      }
+    };
+    f();
+    window.addEventListener("scroll", f, { passive: true });
+    return () => window.removeEventListener("scroll", f);
+  }, [loc.pathname]);
+  useEffect(() => {
+    if (!("IntersectionObserver" in window)) return;
+    document.documentElement.classList.add("motion-ready");
+    const obs = new IntersectionObserver(
+      (es) =>
+        es.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in-view");
+            obs.unobserve(e.target);
+          }
+        }),
+      { threshold: 0.12 },
+    );
+    document
+      .querySelectorAll(".reveal:not(.in-view)")
+      .forEach((e) => obs.observe(e));
+    return () => obs.disconnect();
+  }, [loc.pathname]);
+  useEffect(() => {
+    if (!cartOpen && !menu) return;
+    const onKeyDown = (e) => {
+      if (e.key === "Escape") {
+        setCartOpen(false);
+        setMenu(false);
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [cartOpen, menu]);
+  useEffect(() => {
+    const page = sourceContent[loc.pathname];
+    const p = products.find((p) => loc.pathname === "/products/" + p.slug);
+    const orderTitle = loc.pathname.startsWith('/manage/orders/') ? 'Order details'
+      : loc.pathname.startsWith('/orders/') ? 'Track order' : null;
+    document.title =
+      (p?.name ||
+        orderTitle ||
+        (page?.title !== "404" ? page?.title : null) ||
+        {
+          "/science": "Biomaterials Science & R&D",
+          "/blogs": "Clinical Blogs & Dental Literature",
+          "/contact": "Contact",
+          "/distributor": "Request Distributor Pricing",
+          "/distributor-pricing": "Request Distributor Pricing",
+          "/distributors": "Request Distributor Pricing",
+          "/privacy": "Privacy Policy",
+          "/terms": "Terms of Service",
+          "/shipping": "Shipping & Returns",
+          "/cart": "Your selection",
+          "/checkout": "Checkout",
+          "/profile": "Profile",
+          "/account": "Profile",
+          "/orders": "My orders",
+          "/manage/orders": "Manage orders",
+        }[loc.pathname] ||
+        "Page not found") + " | SPARK-DV";
+    const description =
+      p?.desc ||
+      "Science-led pediatric and preventive dentistry. Explore SPARK-DV products, clinical resources and partnership opportunities.";
+    const meta = (key, value, attr = "name") => {
+      let el = document.querySelector("meta[" + attr + '="' + key + '"]');
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, key);
+        document.head.append(el);
+      }
+      el.content = value;
+    };
+    meta("description", description);
+    meta("og:title", document.title, "property");
+    meta("og:description", description, "property");
+    meta("og:url", "https://sparkdv.com" + loc.pathname, "property");
+    meta(
+      "og:image",
+      "https://sparkdv.com" +
+      new URL(p ? productAssets[p.slug]?.local || p.shareImage || p.image || "/images/logo.png" : "/images/logo.png", 'https://sparkdv.com').href,
+      "property",
+    );
+    let canonical = document.querySelector('link[rel="canonical"]');
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.append(canonical);
+    }
+    canonical.href = "https://sparkdv.com" + loc.pathname;
+    let schema = document.querySelector("#structured-data");
+    if (!schema) {
+      schema = document.createElement("script");
+      schema.id = "structured-data";
+      schema.type = "application/ld+json";
+      document.head.append(schema);
+    }
+    schema.textContent = JSON.stringify(
+      p
+        ? {
+          "@context": "https://schema.org",
+          "@type": "Product",
+          name: p.name,
+          description: p.desc,
+          image: new URL(productAssets[p.slug]?.local || p.shareImage || p.image || "/images/logo.png", 'https://sparkdv.com').href,
+          brand: { "@type": "Brand", name: "SPARK-DV" },
+        }
+        : {
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "SPARK-DV",
+          url: "https://sparkdv.com",
+          email: "sparkdv310@gmail.com",
+        },
+    );
+  }, [loc.pathname, products]);
+  useEffect(() => {
+    if (!cartOpen && !menu) return;
+    const previous = document.activeElement;
+    const region = document.querySelector(
+      cartOpen ? ".cart-drawer" : ".nav.open",
+    );
+    const old = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    const items = () =>
+      [...region.querySelectorAll("a,button,input,select,summary")].filter(
+        (e) => e.getClientRects().length,
+      );
+    items()[0]?.focus();
+    const trap = (e) => {
+      if (e.key !== "Tab") return;
+      const list = items();
+      if (e.shiftKey && document.activeElement === list[0]) {
+        e.preventDefault();
+        list.at(-1)?.focus();
+      } else if (!e.shiftKey && document.activeElement === list.at(-1)) {
+        e.preventDefault();
+        list[0]?.focus();
+      }
+    };
+    document.addEventListener("keydown", trap);
+    return () => {
+      document.body.style.overflow = old;
+      document.removeEventListener("keydown", trap);
+      previous?.focus();
+    };
+  }, [cartOpen, menu]);
+  useEffect(() => {
+    const media = window.matchMedia('(min-width: 1181px)');
+    const close = () => { if (media.matches) setMenu(false); };
+    media.addEventListener('change', close);
+    return () => media.removeEventListener('change', close);
+  }, []);
+  const qty = cart.reduce((s, i) => s + i.qty, 0);
+  const [flyingItems, setFlyingItems] = useState([]);
+  const [cartGlowing, setCartGlowing] = useState(false);
+  const glowTimeoutRef = React.useRef(null);
+  const cartDrawerTimeoutRef = React.useRef(null);
+
+  const add = (p, count = 1, eventOrEl = null) => {
+    if (!cartLoaded || cartError) {
+      setToast('Your cart is unavailable. Try again shortly.');
+      setTimeout(() => setToast(''), 2600);
+      return;
+    }
+    if (!p.canBuy) {
+      setToast('This product is not available for online checkout.');
+      setTimeout(() => setToast(''), 2600);
+      return;
+    }
+
+    // 1. Calculate trajectory start coordinates
+    let startX = window.innerWidth / 2;
+    let startY = window.innerHeight / 2;
+
+    if (eventOrEl && typeof eventOrEl === "object") {
+      if ("clientX" in eventOrEl && typeof eventOrEl.clientX === "number" && eventOrEl.clientX > 0) {
+        startX = eventOrEl.clientX;
+        startY = eventOrEl.clientY;
+      } else if ("currentTarget" in eventOrEl && eventOrEl.currentTarget) {
+        const rect = eventOrEl.currentTarget.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+      } else if ("target" in eventOrEl && eventOrEl.target) {
+        const rect = eventOrEl.target.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+      } else if ("getBoundingClientRect" in eventOrEl) {
+        const rect = eventOrEl.getBoundingClientRect();
+        startX = rect.left + rect.width / 2;
+        startY = rect.top + rect.height / 2;
+      }
+    } else {
+      const el =
+        document.querySelector(`[data-product-slug="${p.slug}"]`) ||
+        document.querySelector(`a[href="/products/${p.slug}"]`) ||
+        document.activeElement;
+      if (el && el.getBoundingClientRect) {
+        const rect = el.getBoundingClientRect();
+        if (rect.width > 0 && rect.height > 0) {
+          startX = rect.left + rect.width / 2;
+          startY = rect.top + rect.height / 2;
+        }
+      }
+    }
+
+    // Determine target location: header cart trigger button
+    const cartEl =
+      document.querySelector("#header-cart-button") ||
+      document.querySelector(".header-actions button.cart-trigger") ||
+      document.querySelector("button.cart-trigger");
+
+    let targetX = window.innerWidth - 65;
+    let targetY = 36;
+    if (cartEl) {
+      const rect = cartEl.getBoundingClientRect();
+      targetX = rect.left + rect.width / 2;
+      targetY = rect.top + rect.height / 2;
+    }
+
+    const animId = Date.now() + Math.random();
+    const imgSrc =
+      p.image ||
+      productImageSrc(p);
+
+    const newItem = {
+      id: animId,
+      name: p.name,
+      imgSrc,
+      startX,
+      startY,
+      targetX,
+      targetY,
+      count,
+    };
+
+    setFlyingItems((prev) => [...prev, newItem]);
+
+    // 2. Add to cart state immediately so state remains consistent
+    setCart((prev) => {
+      const found = prev.find((i) => i.slug === p.slug);
+      const max = p.availableStock == null ? 99 : Math.min(99, p.availableStock);
+      return found
+        ? prev.map((i) => (i.slug === p.slug ? { ...i, qty: Math.min(max, i.qty + count) } : i))
+        : [...prev, { ...p, qty: Math.min(max, count) }];
+    });
+    setCartVersion(value => value + 1);
+    setToast(`${p.name} added to cart`);
+    setTimeout(() => setToast(""), 2600);
+  };
+
+  const handleItemArrival = (id) => {
+    setFlyingItems((prev) => prev.filter((item) => item.id !== id));
+    setCartGlowing(true);
+
+    if (glowTimeoutRef.current) clearTimeout(glowTimeoutRef.current);
+    glowTimeoutRef.current = setTimeout(() => {
+      setCartGlowing(false);
+    }, 2400);
+
+    if (cartDrawerTimeoutRef.current) clearTimeout(cartDrawerTimeoutRef.current);
+    cartDrawerTimeoutRef.current = setTimeout(() => {
+      setCartOpen(true);
+    }, 1300);
+  };
+
+  const update = (slug, delta) => {
+    setCart((prev) =>
+      prev
+        .map((i) => (i.slug === slug ? { ...i, qty: Math.min(i.availableStock ?? 99, i.qty + delta) } : i))
+        .filter((i) => i.qty > 0),
+    );
+    setCartVersion(value => value + 1);
+  };
+  const remove = (slug) => {
+    setCart((prev) => prev.filter((i) => i.slug !== slug));
+    setCartVersion(value => value + 1);
+  };
+  const isHeroOverlay = loc.pathname === "/" && !pastHero;
+  return (
+    <>
+      <a className="skip" href="#main">
+        Skip to content
+      </a>
+      <header className={`site-header ${scrolled ? "compact" : ""} ${isHeroOverlay ? "hero-header-overlay" : ""}`}>
+        <div className="header-inner">
+          <Link to="/" className="brand" aria-label="SPARK-DV home">
+            <img src={img("logo.svg")} alt="SPARK-DV — Innovating the Future" />
+          </Link>
+          <nav
+            className={menu ? "nav open" : "nav"}
+            aria-label="Main navigation"
+          >
+            <div className="mobile-menu-content">
+              <div className="mobile-menu-top"><span>Explore <BrandWordmark /></span><button type="button" aria-label="Close navigation" onClick={() => setMenu(false)}><X size={23} /></button></div>
+              <div className="mobile-menu-links">{[
+                ['/', 'Home'],
+                ['/products', 'Products'],
+                ['/about', 'About'],
+                ['/science', 'Science'],
+                ['/blogs', 'Blogs'],
+                ['/dentists', 'For Dentists'],
+                ['/parents', 'For Parents'],
+                ['/contact', 'Contact'],
+                ['/distributor', 'Distributor Pricing'],
+                ['/profile', accountLabel],
+              ].map(([to, label]) => (
+                <Link
+                  key={to}
+                  to={to}
+                  onClick={() => setMenu(false)}
+                  aria-current={loc.pathname === to ? 'page' : undefined}
+                >
+                  <TextRoll center>{label}</TextRoll>
+                  <ArrowUpRight size={22} />
+                </Link>
+              ))}</div>
+              <Link className="mobile-menu-cart" to="/cart" onClick={() => setMenu(false)}><ShoppingBag size={19} />Your cart <span>{qty} items</span></Link>
+              <p>Dental science. Everyday care.</p>
+            </div>
+            <Dock>
+              {[
+                ['/products', 'Products', 84],
+                ['/about', 'About', 64],
+                ['/science', 'Science', 76],
+                ['/blogs', 'Blogs', 68],
+                ['/dentists', 'For Dentists', 104],
+                ['/parents', 'For Parents', 96],
+                ['/contact', 'Contact', 76],
+              ].map(([to, label, width]) => (
+                <DockItem key={to} baseWidth={width}>
+                  <Link to={to} aria-current={loc.pathname === to ? 'page' : undefined}>
+                    {label}
+                  </Link>
+                </DockItem>
+              ))}
+            </Dock>
+            <div className="mobile-actions">
+              <Link className="button button-dark" to="/distributor" onClick={() => setMenu(false)}>
+                Request distributor pricing <ArrowUpRight size={16} />
+              </Link>
+              <Link className="button button-outline mt-2" to="/contact" onClick={() => setMenu(false)}>
+                Clinical contact <ArrowUpRight size={16} />
+              </Link>
+            </div>
+          </nav>
+          <div className="header-actions">
+            <Link
+              to="/distributor"
+              className="header-distributor-btn hidden sm:inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-full text-xs font-semibold text-[#073763] bg-[#f0f4f8] hover:bg-white border border-[#073763]/20 hover:border-[#073763]/40 transition-all shadow-2xs hover:shadow-xs whitespace-nowrap"
+              title="Request Distributor & Wholesale Pricing"
+            >
+              <span>Request distributor pricing</span>
+              <ArrowUpRight size={14} className="text-[#073763]" />
+            </Link>
+            <Link
+              to="/profile"
+              className="cart-trigger header-profile-link"
+              aria-label={accountLabel}
+              title={accountLabel}
+            >
+              <User size={19} />
+            </Link>
+            <button
+              id="header-cart-button"
+              className={`cart-trigger ${cartGlowing ? "cart-trigger-glowing" : ""}`}
+              aria-label={`Open cart, ${qty} items`}
+              onClick={() => setCartOpen(true)}
+            >
+              <ShoppingBag size={19} />
+              <span>{qty}</span>
+              {cartGlowing && <span className="cart-glow-burst" aria-hidden="true" />}
+            </button>
+            <Link className="button button-dark header-cta" to="/products">
+              Shop products <ArrowUpRight size={15} />
+            </Link>
+            <button
+              className="menu-button"
+              aria-label={menu ? "Close menu" : "Open menu"}
+              aria-expanded={menu}
+              onClick={() => setMenu(!menu)}
+            >
+              {menu ? <X /> : <Menu />}
+            </button>
+          </div>
+        </div>
+      </header>
+      <main id="main">
+        {cartError && <p className="wrap" role="alert" style={{ padding: '12px 0', color: '#9f1239' }}>{cartError} <button type="button" onClick={() => setCartRevision(value => value + 1)}>Retry cart</button></p>}
+        <RoutesView add={add} cartQty={qty} cart={cart} cartLoaded={cartLoaded} cartError={cartError} update={update} remove={remove} completeOrder={completeOrder} />
+      </main>
+      {loc.pathname === '/checkout' ? <footer className="checkout-footer"><strong><BrandWordmark /></strong><span>Questions about your order? <Link to="/contact">Contact our team</Link></span><div><Link to="/privacy">Privacy</Link><Link to="/terms">Terms</Link><Link to="/shipping">Shipping & returns</Link></div></footer> : <CinematicFooter />}
+      <ClinicalChatbot />
+      {cartOpen && (
+        <div
+          className="drawer-backdrop"
+          onMouseDown={(e) =>
+            e.target === e.currentTarget && setCartOpen(false)
+          }
+        >
+          <aside
+            className="cart-drawer"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="cart-title"
+          >
+            <div className="drawer-head">
+              <div>
+                <p className="eyebrow">Your selection</p>
+                <h2 id="cart-title">
+                  Cart <span className="count-pill">{qty}</span>
+                </h2>
+              </div>
+              <button
+                className="icon-button"
+                aria-label="Close cart"
+                onClick={() => setCartOpen(false)}
+              >
+                <X />
+              </button>
+            </div>
+            {cart.length === 0 ? (
+              <div className="empty-cart">
+                <ShoppingBag size={34} />
+                <h3>Your cart is empty</h3>
+                <p>Browse our products and add items to get started.</p>
+                <Link
+                  className="button button-dark"
+                  to="/products"
+                  onClick={() => setCartOpen(false)}
+                >
+                  Shop products <ArrowRight size={16} />
+                </Link>
+              </div>
+            ) : (
+              <>
+                <div className="cart-items">
+                  {cart.map((item) => (
+                    <div className="cart-item" key={item.slug}>
+                      <div className="cart-thumb">
+                        <img src={productImageSrc(item)} alt="" />
+                      </div>
+                      <div className="cart-item-copy">
+                        <div className="cart-line">
+                          <h3>{item.name}</h3>
+                          <button
+                            className="remove"
+                            onClick={() => remove(item.slug)}
+                          >
+                            Remove
+                          </button>
+                        </div>
+                        <small>{item.variant || item.eyebrow}</small>
+                        <strong>{money(item.price)}</strong>
+                        <div className="quantity">
+                          <button
+                            aria-label={`Decrease ${item.name} quantity`}
+                            onClick={() => update(item.slug, -1)}
+                          >
+                            <Minus size={13} />
+                          </button>
+                          <span>{item.qty}</span>
+                          <button
+                            aria-label={`Increase ${item.name} quantity`}
+                            onClick={() => update(item.slug, 1)}
+                          >
+                            <Plus size={13} />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className="cart-bottom">
+                  <div className="subtotal">
+                    <span>Subtotal</span>
+                    <strong>
+                      {money(
+                        cart.reduce((s, i) => s + (i.price || 0) * i.qty, 0),
+                      )}
+                    </strong>
+                  </div>
+                  <small>GST and delivery are calculated at checkout.</small>
+                  <button
+                    className="button button-dark checkout"
+                    onClick={() => { setCartOpen(false); navigate('/checkout') }}
+                  >
+                    Continue to checkout <ArrowRight size={16} />
+                  </button>
+                </div>
+              </>
+            )}
+          </aside>
+        </div>
+      )}
+      {toast && (
+        <div className="toast" role="status">
+          <Check size={17} />
+          {toast}
+        </div>
+      )}
+      {/* Dynamic Fly-to-Cart Particle Animation */}
+      {flyingItems.map((item) => (
+        <FlyingCartItem key={item.id} item={item} onArrival={handleItemArrival} />
+      ))}
+    </>
+  );
+}
+
+function FlyingCartItem({ item, onArrival }) {
+  const elRef = React.useRef(null);
+
+  useEffect(() => {
+    if (!elRef.current) return;
+    const { startX, startY, targetX, targetY } = item;
+
+    // Curved parabolic trajectory
+    const dx = targetX - startX;
+    const dy = targetY - startY;
+    const dist = Math.hypot(dx, dy);
+    const arcHeight = Math.max(90, Math.min(260, dist * 0.32));
+    const apexY = Math.min(startY, targetY) - arcHeight;
+    const midX = startX + dx * 0.45;
+
+    const keyframes = [
+      {
+        transform: `translate3d(${startX - 36}px, ${startY - 36}px, 0) scale(0.5) rotate(-6deg)`,
+        opacity: 0.3,
+        filter: "drop-shadow(0 4px 10px rgba(14, 165, 233, 0.3))",
+      },
+      {
+        transform: `translate3d(${startX + dx * 0.18 - 36}px, ${apexY - 36}px, 0) scale(1.22) rotate(10deg)`,
+        opacity: 1,
+        filter: "drop-shadow(0 16px 32px rgba(7, 55, 99, 0.4)) drop-shadow(0 0 20px rgba(14, 165, 233, 0.6))",
+        offset: 0.28,
+      },
+      {
+        transform: `translate3d(${midX - 36}px, ${apexY + (targetY - apexY) * 0.25 - 36}px, 0) scale(1.05) rotate(-4deg)`,
+        opacity: 1,
+        filter: "drop-shadow(0 14px 26px rgba(7, 55, 99, 0.35)) drop-shadow(0 0 16px rgba(14, 165, 233, 0.5))",
+        offset: 0.58,
+      },
+      {
+        transform: `translate3d(${targetX - 22}px, ${targetY - 22}px, 0) scale(0.42) rotate(8deg)`,
+        opacity: 0.95,
+        filter: "drop-shadow(0 0 18px rgba(14, 165, 233, 0.8))",
+        offset: 0.88,
+      },
+      {
+        transform: `translate3d(${targetX - 14}px, ${targetY - 14}px, 0) scale(0.12) rotate(0deg)`,
+        opacity: 0,
+        filter: "drop-shadow(0 0 28px rgba(14, 165, 233, 1))",
+      },
+    ];
+
+    const animation = elRef.current.animate(keyframes, {
+      duration: 640,
+      easing: "cubic-bezier(0.2, 0.85, 0.3, 1)",
+      fill: "forwards",
+    });
+
+    animation.onfinish = () => {
+      onArrival(item.id);
+    };
+
+    return () => {
+      try {
+        animation.cancel();
+      } catch { }
+    };
+  }, [item, onArrival]);
+
+  return (
+    <div
+      ref={elRef}
+      className="flying-cart-pill"
+      style={{
+        position: "fixed",
+        top: 0,
+        left: 0,
+        width: "72px",
+        height: "72px",
+        borderRadius: "22px",
+        background: "radial-gradient(circle at 35% 35%, #ffffff 45%, #f0f9ff 100%)",
+        border: "1.5px solid rgba(14, 165, 233, 0.6)",
+        boxShadow: "0 18px 40px -4px rgba(7, 55, 99, 0.35), 0 0 22px rgba(14, 165, 233, 0.5)",
+        zIndex: 99999,
+        pointerEvents: "none",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        padding: "8px",
+        willChange: "transform, opacity, filter",
+      }}
+    >
+      <img
+        src={item.imgSrc}
+        alt=""
+        style={{
+          width: "100%",
+          height: "100%",
+          objectFit: "contain",
+          filter: "drop-shadow(0 4px 8px rgba(7, 55, 99, 0.18))",
+        }}
+      />
+      <span
+        style={{
+          position: "absolute",
+          top: "-6px",
+          right: "-6px",
+          minWidth: "24px",
+          height: "24px",
+          padding: "0 6px",
+          borderRadius: "12px",
+          background: "linear-gradient(135deg, #0284c7, #073763)",
+          color: "#ffffff",
+          fontSize: "11px",
+          fontWeight: 700,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          boxShadow: "0 2px 10px rgba(2, 132, 199, 0.7)",
+          border: "1.5px solid #ffffff",
+        }}
+      >
+        +{item.count || 1}
+      </span>
+    </div>
+  );
+}
+function RoutesView({ add, cartQty, cart, cartLoaded, cartError, update, remove, completeOrder }) {
+  const { products, content } = useCatalog();
+  const { rememberProduct, ready: preferencesReady } = usePreferences();
+  const location = useLocation();
+  const { status, user } = useAuth();
+  const path = location.pathname;
+  const detail = path.startsWith("/products/") ? path.split("/").pop() : null;
+  const userId = user?.id;
+  useEffect(() => {
+    if (preferencesReady && userId && detail && products.some(product => product.slug === detail)) rememberProduct(detail);
+  }, [detail, userId, products, preferencesReady, rememberProduct]);
+  if (path === '/admin' || path.startsWith('/manage/')) return <NotFound />;
+  if (path === "/") return <NewHome add={add} products={products} content={content} />;
+  if (path === "/products") return <Catalog key={location.search} add={add} />;
+  if (detail) {
+    if (detail === "nanion-pro" || detail === "spark-files")
+      return <ProductFamilyDetail familySlug={detail} add={add} />;
+    return <ProductDetail slug={detail} add={add} />;
+  }
+  if (path === "/science") return <ManagedPage pageKey="science" fallback={<SciencePage />} />;
+  if (path === "/blogs") return <ManagedPage pageKey="blogs" fallback={<ScienceGallery />} />;
+  if (path === "/dentists") return <ManagedPage pageKey="dentists" fallback={<EditorialPage path="/dentists" />} />;
+  if (path === "/parents") return <ManagedPage pageKey="parents" fallback={<EditorialPage path="/parents" />} />;
+  if (path === "/school-program")
+    return <ManagedPage pageKey="school-program" fallback={<EditorialPage path="/school-program" />} />;
+  if (path === "/about") return <ManagedPage pageKey="about" fallback={<EditorialPage path="/about" />} />;
+  if (path === "/contact") return <ManagedPage pageKey="contact" fallback={<Contact />} />;
+  if (path === "/distributor" || path === "/distributor-pricing" || path === "/distributors")
+    return <ManagedPage pageKey="distributor" fallback={<DistributorPage />} />;
+  if (path === "/checkout") return cartLoaded ? <CheckoutPage cart={cart} update={update} remove={remove} completeOrder={completeOrder} /> : <p className="wrap section" role={cartError ? 'alert' : 'status'}>{cartError || 'Loading your cart…'}</p>;
+  const ordersRoute = /^\/(manage\/)?orders(?:\/([a-f0-9-]{36}))?$/.exec(path);
+  if (ordersRoute) {
+    const staff = Boolean(ordersRoute[1]);
+    if (status === 'loading') return <p className="wrap py-20" role="status">Checking your account…</p>;
+    if (status === 'unavailable' && !ordersRoute[2]) return <p className="wrap py-20" role="alert">The account service is unavailable. Refresh this page to try again.</p>;
+    if (!user && !ordersRoute[2]) return <Navigate to="/login" replace state={{ from: path }} />;
+    if (staff && !user?.order_staff) return <NotFound />;
+    return <OrdersPage key={`${user?.id || 'guest'}:${path}`} id={ordersRoute[2]} staff={staff} userId={user?.id} />;
+  }
+  if (path === "/account" || path === "/profile") {
+    if (status === 'loading') return <p className="mx-auto max-w-5xl px-5 py-20" role="status">Checking your session…</p>;
+    if (user) return <UserProfile key={user.id} user={user} cartQty={cartQty} />;
+    return <Navigate to="/login" replace state={{ from: path }} />;
+  }
+  if (path === "/login") return <MercuryLogin key={location.search} />;
+  if (["/privacy", "/terms", "/shipping"].includes(path))
+    return <ManagedPage pageKey={path.slice(1)} fallback={<Policy path={path} />} />;
+  if (path === "/cart") return cartLoaded ? <CartPage cart={cart} update={update} remove={remove} /> : <p className="wrap section" role={cartError ? 'alert' : 'status'}>{cartError || 'Loading your cart…'}</p>;
+  return <NotFound />;
+}
+function SectionHead({ number, label, title, copy, link, linkText }) {
+  return (
+    <div className="section-head reveal">
+      <div className="section-marker">
+        <span>{number}</span>
+        <i />
+      </div>
+      <div className="section-head-body">
+        <p className="eyebrow">{label}</p>
+        <h2>{brandText(title)}</h2>
+        {copy && <p className="section-copy">{brandText(copy)}</p>}
+      </div>
+      {link && (
+        <Link className="text-link section-head-link" to={link}>
+          {linkText} <ArrowUpRight size={16} />
+        </Link>
+      )}
+    </div>
+  );
+}
+function ProductCard({ product: p, add, compact = false }) {
+  const soldOut = p.purchaseMode === 'online' && p.availableStock === 0 && !p.coming;
+  const canBuy = p.canBuy === true;
+  return (
+    <article className={`product-card reveal ${compact ? "compact-card" : ""}`} data-product-slug={p.slug}>
+      <Link to={`/products/${p.slug}`} className="product-photo">
+        <ProductImage product={p} hero />
+        {(p.coming || soldOut) && <span className="status-label">{p.coming ? 'Coming soon' : 'Sold out'}</span>}
+        {p.professional && <span className="pro-label">Professional</span>}
+        <span className="photo-arrow">
+          <ArrowUpRight size={17} />
+        </span>
+      </Link>
+      <div className="product-info">
+        <p className="catalog-product-category">{p.category}</p>
+        <p className="eyebrow">{p.eyebrow}</p>
+        <Link className="product-title" to={`/products/${p.slug}`}>
+          {p.name}
+        </Link>
+        <p className="product-desc">{p.desc}</p>
+        <div className="tag-row">
+          {p.tags.slice(0, 3).map((t) => (
+            <span key={t}>{t}</span>
+          ))}
+        </div>
+        <div className="product-buy">
+          <strong>{money(p.price)}</strong>
+          {p.compare && <del>{money(p.compare)}</del>}
+          {p.coming ? (
+            <span className="coming-label">Launching soon</span>
+          ) : soldOut ? (
+            <span className="coming-label">Sold out</span>
+          ) : canBuy ? (
+            <button
+              type="button"
+              aria-label={`Add ${p.name} to cart`}
+              onClick={(e) => add(p, 1, e)}
+            >
+              <Plus size={15} /> Add
+            </button>
+          ) : (
+            <Link to={`/contact?product=${encodeURIComponent(p.name)}`}>
+              Enquire <ArrowRight size={14} />
+            </Link>
+          )}
+        </div>
+      </div>
+    </article>
+  );
+}
+function Catalog({ add }) {
+  const { products, categories } = useCatalog();
+  const params = new URLSearchParams(useLocation().search);
+  const [selectedCategories, setSelectedCategories] = useState(() => categories.includes(params.get("category")) && params.get("category") !== "All products" ? [params.get("category")] : []);
+  const [query, setQuery] = useState("");
+  const [prof, setProf] = useState(false);
+  const [statusFilters, setStatusFilters] = useState([]);
+  const [sort, setSort] = useState("featured");
+  const [mobileFiltersOpen, setMobileFiltersOpen] = useState(false);
+  const [openFilterGroups, setOpenFilterGroups] = useState({ category: true, price: true, shopping: true, use: true });
+  const pricedProducts = products.filter(p => p.price != null && !p.coming);
+  const minCatalogPrice = pricedProducts.length ? Math.min(...pricedProducts.map(p => p.price)) : 0;
+  const maxCatalogPrice = pricedProducts.length ? Math.max(...pricedProducts.map(p => p.price)) : 0;
+  const [priceMin, setPriceMin] = useState(minCatalogPrice);
+  const [priceMax, setPriceMax] = useState(maxCatalogPrice);
+  const filtered = useMemo(() => {
+    const list = products.filter(p => {
+      const matchesCategory = selectedCategories.length === 0 || selectedCategories.includes(p.category);
+      const matchesSearch = `${p.name} ${p.category} ${p.desc} ${(p.tags ?? []).join(" ")}`.toLowerCase().includes(query.trim().toLowerCase());
+      const matchesStatus = statusFilters.length === 0 || statusFilters.some(status => status === "online"
+        ? p.canBuy === true : status === "enquiry" ? p.purchaseMode === 'enquiry' : p.purchaseMode === 'coming' || p.coming);
+      const priceFilterActive = priceMin > minCatalogPrice || priceMax < maxCatalogPrice;
+      const matchesPrice = !priceFilterActive || (p.price != null && p.price >= priceMin && p.price <= priceMax);
+      return matchesCategory && matchesSearch && (!prof || p.professional) && matchesStatus && matchesPrice;
+    });
+    if (sort === "price-low") list.sort((a, b) => (a.price ?? 999999) - (b.price ?? 999999));
+    if (sort === "price-high") list.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+    if (sort === "name") list.sort((a, b) => a.name.localeCompare(b.name));
+    return list;
+  }, [products, selectedCategories, query, prof, statusFilters, priceMin, priceMax, minCatalogPrice, maxCatalogPrice, sort]);
+  const priceFilterActive = priceMin > minCatalogPrice || priceMax < maxCatalogPrice;
+  const activeFilterCount = selectedCategories.length + statusFilters.length + Number(prof) + Number(priceFilterActive);
+  const toggleCategory = category => setSelectedCategories(current => current.includes(category) ? current.filter(item => item !== category) : [...current, category]);
+  const toggleStatus = status => setStatusFilters(current => current.includes(status) ? current.filter(item => item !== status) : [...current, status]);
+  const toggleFilterGroup = group => setOpenFilterGroups(current => ({ ...current, [group]: !current[group] }));
+  const clearFilters = () => { setSelectedCategories([]); setProf(false); setStatusFilters([]); setPriceMin(minCatalogPrice); setPriceMax(maxCatalogPrice); setQuery(""); setSort("featured") };
+  return <>
+    <section className="catalog-heading wrap"><div><h1>Shop products</h1><p>Find products for pediatric and preventive dental care.</p></div><Link className="button button-dark" to="/contact?type=Professional%20pricing">Professional pricing <ArrowUpRight size={16} /></Link></section>
+    <section className="catalog-section wrap" aria-label="Product catalogue">
+      <div className="catalog-layout">
+        <aside className="catalog-sidebar" data-open={mobileFiltersOpen} aria-label="Product filters">
+          <button className="catalog-mobile-filter-toggle" type="button" aria-expanded={mobileFiltersOpen} onClick={() => setMobileFiltersOpen(open => !open)}><SlidersHorizontal size={17} /><span>Filters</span>{activeFilterCount > 0 && <span className="filter-count">{activeFilterCount}</span>}<ChevronDown size={16} /></button>
+          <div className="catalog-filter-content">
+            <div className="catalog-filter-heading"><h2>Filters</h2><button className="clear-filter" onClick={clearFilters} disabled={activeFilterCount === 0 && !query}>Clear all</button></div>
+            <section className="catalog-filter-group">
+              <button className="catalog-filter-toggle" type="button" aria-expanded={openFilterGroups.category} onClick={() => toggleFilterGroup("category")}>Category <ChevronDown size={15} /></button>
+              {openFilterGroups.category && <div className="catalog-filter-options">
+                {categories.slice(1).map(category => <label key={category}><input type="checkbox" checked={selectedCategories.includes(category)} onChange={() => toggleCategory(category)} /><span>{category}</span><small>{products.filter(p => p.category === category).length}</small></label>)}
+              </div>}
+            </section>
+            <section className="catalog-filter-group">
+              <button className="catalog-filter-toggle" type="button" aria-expanded={openFilterGroups.price} onClick={() => toggleFilterGroup("price")}>Price <ChevronDown size={15} /></button>
+              {openFilterGroups.price && <div className="catalog-price-range">
+                <label><span>₹</span><input type="number" min={minCatalogPrice} max={priceMax} value={priceMin} aria-label="Minimum price in rupees" onChange={e => setPriceMin(Math.min(Number(e.target.value) || minCatalogPrice, priceMax))} /></label>
+                <span aria-hidden="true">to</span>
+                <label><span>₹</span><input type="number" min={priceMin} max={maxCatalogPrice} value={priceMax} aria-label="Maximum price in rupees" onChange={e => setPriceMax(Math.max(Number(e.target.value) || maxCatalogPrice, priceMin))} /></label>
+                <small>{priceFilterActive ? "Showing within selected range" : "All listed prices"}</small>
+              </div>}
+            </section>
+            <section className="catalog-filter-group">
+              <button className="catalog-filter-toggle" type="button" aria-expanded={openFilterGroups.shopping} onClick={() => toggleFilterGroup("shopping")}>Shopping options <ChevronDown size={15} /></button>
+              {openFilterGroups.shopping && <div className="catalog-filter-options">
+                <label><input type="checkbox" checked={statusFilters.includes("online")} onChange={() => toggleStatus("online")} /><span>Available online</span></label>
+                <label><input type="checkbox" checked={statusFilters.includes("enquiry")} onChange={() => toggleStatus("enquiry")} /><span>Enquiry only</span></label>
+                <label><input type="checkbox" checked={statusFilters.includes("coming")} onChange={() => toggleStatus("coming")} /><span>Coming soon</span></label>
+              </div>}
+            </section>
+            <section className="catalog-filter-group">
+              <button className="catalog-filter-toggle" type="button" aria-expanded={openFilterGroups.use} onClick={() => toggleFilterGroup("use")}>Use <ChevronDown size={15} /></button>
+              {openFilterGroups.use && <div className="catalog-filter-options">
+                <label><input type="checkbox" checked={prof} onChange={e => setProf(e.target.checked)} /><span>Professional use</span></label>
+              </div>}
+            </section>
+            <Link className="catalog-professional-link" to="/contact?type=Professional%20pricing">Need professional pricing? <ArrowUpRight size={14} /></Link>
+          </div>
+        </aside>
+        <div className="catalog-results">
+          <div className="catalog-toolbar">
+            <div className="search-field"><Search size={18} /><input aria-label="Search products" placeholder="Search products and categories" value={query} onChange={e => setQuery(e.target.value)} />{query && <button aria-label="Clear search" onClick={() => setQuery("")}><X size={15} /></button>}</div>
+            <label className="sort-label">Sort by <select value={sort} onChange={e => setSort(e.target.value)}><option value="featured">Featured</option><option value="name">Name</option><option value="price-low">Price: low to high</option><option value="price-high">Price: high to low</option></select></label>
+          </div>
+          <div className="catalog-meta-row" aria-live="polite" aria-atomic="true"><span><strong>{filtered.length}</strong> products</span><span className="catalog-result-note">Original <BrandWordmark /> product photography</span></div>
+          {(selectedCategories.length > 0 || statusFilters.length > 0 || prof || priceFilterActive) && <div className="catalog-active-filters" aria-label="Active filters">
+            {selectedCategories.map(category => <button key={category} onClick={() => toggleCategory(category)}>{category}<X size={13} /></button>)}
+            {statusFilters.map(status => <button key={status} onClick={() => toggleStatus(status)}>{status === "online" ? "Available online" : status === "enquiry" ? "Enquiry only" : "Coming soon"}<X size={13} /></button>)}
+            {prof && <button onClick={() => setProf(false)}>Professional use<X size={13} /></button>}
+            {priceFilterActive && <button onClick={() => { setPriceMin(minCatalogPrice); setPriceMax(maxCatalogPrice) }}>₹{priceMin.toLocaleString("en-IN")} – ₹{priceMax.toLocaleString("en-IN")}<X size={13} /></button>}
+            <button className="clear-filter" onClick={clearFilters}>Clear all</button>
+          </div>}
+          {filtered.length ? <div className="product-grid commerce-product-grid">{filtered.map(p => <ProductCard key={p.slug} product={p} add={add} />)}</div> : <div className="no-results"><Search size={28} /><h2>{products.length ? 'No products found' : 'No products are published yet'}</h2><p>{products.length ? 'Try a different name or remove a filter.' : 'Please check again soon.'}</p>{products.length > 0 && <button className="button button-outline" onClick={clearFilters}>Clear all filters</button>}</div>}
+        </div>
+      </div>
+    </section>
+    <section className="need-help"><div className="wrap need-help-inner"><div><h2>Need help choosing?</h2><p>Ask our team about products, professional pricing or availability.</p></div><Link className="button button-dark" to="/contact">Talk to our team <ArrowUpRight size={16} /></Link></div></section>
+  </>;
+}
+function PageHero({ eyebrow, title, copy, actions, side }) {
+  return (
+    <section className="page-hero wrap">
+      <div className="page-hero-copy">
+        <p className="eyebrow">
+          <span className="eyebrow-mark" />
+          {eyebrow}
+        </p>
+        <h1>{brandText(title)}</h1>
+        {copy && <p className="hero-lede">{brandText(copy)}</p>}
+        {actions && <div className="hero-actions">{actions}</div>}
+      </div>
+      {side && <div className="page-hero-side">{side}</div>}
+      <div className="page-hero-foot">
+        <span><BrandWordmark /> / INDIA</span>
+        <span>CLINICALLY ORIENTED CARE</span>
+        <ArrowDown size={15} />
+      </div>
+    </section>
+  );
+}
+function ProductFamilyDetail({ familySlug, add }) {
+  const { products } = useCatalog();
+  const variants = products.filter((p) => p.familySlug === familySlug),
+    files = familySlug === "spark-files",
+    copy = files
+      ? "Black Gold (TiN) and Black Oxide (TiO₂) surface-engineered NiTi rotary files, bio-engineered for delicate primary-tooth anatomy. Includes non-cutting tips, pediatric lengths, and S-shape or triangular options."
+      : "Four-action dual-matrix caries prevention. NSF antibacterial action, biofilm disruption, sustained fluoride release, and 5% nano-hydroxyapatite for biomimetic repair and dentinal tubule occlusion.";
+  if (!variants.length) return <NotFound />;
+  return (
+    <>
+      <PageHero
+        eyebrow={
+          files ? brandText("SPARK DV Files") : "NSF + 5% nHA DUAL-MATRIX"
+        }
+        title={
+          <>
+            {files ? "Pediatric and permanent" : "Four-action"}
+            <br />
+            <em>{files ? "file systems." : "Nanion Pro."}</em>
+          </>
+        }
+        copy={copy}
+        actions={
+          <>
+            <a className="button button-dark" href="#variants">
+              Compare variants <ArrowDown size={15} />
+            </a>
+            <Link className="text-link" to="/contact">
+              Ask a specialist <ArrowUpRight size={15} />
+            </Link>
+          </>
+        }
+      />
+      <section className="wrap product-source">
+        <details className="product-information-disclosure">
+          <summary>Full product information and clinical details</summary>
+          <SourceArticle path={`/products/${familySlug}`} embedded />
+        </details>
+      </section>
+      <section className="section wrap">
+        <SectionHead
+          number="01"
+          label={files ? "FILE SYSTEM" : "DUAL-MATRIX TECHNOLOGY"}
+          title={
+            files ? (
+              <>
+                Engineered for
+                <br />
+                <em>delicate anatomy.</em>
+              </>
+            ) : (
+              <>
+                Four mechanisms,
+                <br />
+                <em>one matrix.</em>
+              </>
+            )
+          }
+          copy={
+            files
+              ? "Black Gold (TiN) and Black Oxide (TiO₂) surface-engineered NiTi rotary files for primary and permanent teeth. Non-cutting tip, pediatric lengths, S-shape and triangular options."
+              : "NanoSilver Fluoride antibacterial action, biofilm disruption, sustained F⁻ release, and 5% nano-hydroxyapatite for biomimetic repair and dentinal tubule occlusion."
+          }
+        />
+        <div className="detail-image family-image">
+          <ProductImage product={variants[0]} hero />
+        </div>
+        <div className="detail-facts">
+          {(files
+            ? [
+              ["Surface treatment", "Black Gold (TiN) & Black Oxide (TiO₂)"],
+              ["Tip", "Non-cutting tip"],
+              ["Pediatric lengths", "17–19 mm"],
+              ["Designs", "S-shape & triangular"],
+            ]
+            : [
+              ["Antibacterial", "NanoSilver Fluoride"],
+              ["Biofilm", "Disruption"],
+              ["Fluoride", "Sustained F⁻ release"],
+              ["Repair", "5% nano-hydroxyapatite"],
+            ]
+          ).map(([k, v], i) => (
+            <div key={k}>
+              <span>0{i + 1}</span>
+              <h3>{k}</h3>
+              <p>{v}</p>
+            </div>
+          ))}
+        </div>
+      </section>
+      <section className="section detail-tint" id="variants">
+        <div className="wrap">
+          <SectionHead
+            number="02"
+            label="CHOOSE A VARIANT"
+            title={
+              <>
+                Explore the <em>range.</em>
+              </>
+            }
+            copy="Compare available configurations and select a product to review its details."
+          />
+          <div className="product-grid">
+            {variants.map((p) => (
+              <ProductCard key={p.slug} product={p} add={add} />
+            ))}
+          </div>
+        </div>
+      </section>
+      <section className="section wrap">
+        <div className="safety-note">
+          <ShieldCheck size={23} />
+          <div>
+            <p className="eyebrow">USE & SAFETY</p>
+            <h2>Follow product guidance.</h2>
+            <p>
+              {files
+                ? "For qualified dental professionals. Review the official instructions for use and use clinical judgment."
+                : "For children, use under adult supervision. Consult a qualified dental professional for personalized guidance."}
+            </p>
+          </div>
+        </div>
+      </section>
+    </>
+  );
+}
+function ProductDetail({ slug, add }) {
+  const { products } = useCatalog();
+  const p = products.find((x) => x.slug === slug);
+  if (!p) return <NotFound />;
+  const related = products
+    .filter((x) => x.category === p.category && x.slug !== p.slug)
+    .slice(0, 3);
+  return (
+    <>
+      <div className="breadcrumbs wrap">
+        <Link to="/">Home</Link>
+        <ChevronRight size={14} />
+        <Link to="/products">Products</Link>
+        <ChevronRight size={14} />
+        <span>{p.name}</span>
+      </div>
+      <section className="detail-hero wrap">
+        <div className="detail-image">
+          <ProductImage product={p} hero />
+          <span className="image-index">
+            <BrandWordmark /> / PRODUCT{" "}
+            {String(products.indexOf(p) + 1).padStart(2, "0")}
+          </span>
+        </div>
+        <div className="detail-copy">
+          <p className="eyebrow">
+            {p.category} / {p.eyebrow}
+          </p>
+          <h1>{p.name}</h1>
+          {p.professional && (
+            <span className="pro-status">
+              <Stethoscope size={15} /> For qualified dental professionals
+            </span>
+          )}
+          <p className="detail-lede">{p.desc}</p>
+          <div className="detail-tags">
+            {p.tags.map((t) => (
+              <span key={t}>{t}</span>
+            ))}
+          </div>
+          {p.variant && (
+            <div className="variant-box">
+              <span>PRODUCT VARIANT</span>
+              <strong>{p.variant}</strong>
+            </div>
+          )}
+          {p.familySlug && products.filter((item) => item.familySlug === p.familySlug).length > 1 && (
+            <div className="variant-selector" aria-label="Choose a product variant">
+              <span>OTHER VARIANTS</span>
+              <div>{products.filter((item) => item.familySlug === p.familySlug).map((item) => (
+                <Link key={item.slug} aria-current={item.slug === p.slug ? "page" : undefined} to={`/products/${item.slug}`}>{item.name}</Link>
+              ))}</div>
+            </div>
+          )}
+          {p.coming ? (
+            <div className="coming-box">
+              <span>COMING SOON</span>
+              <strong>Launching soon — stay tuned</strong>
+            </div>
+          ) : (
+            <div className="detail-buy">
+              <div>
+                <strong>{money(p.price)}</strong>
+                {p.compare && <del>{money(p.compare)}</del>}
+              </div>
+              {p.purchaseMode === 'online' && p.availableStock === 0 ? <span className="coming-label">Sold out</span> : p.canBuy ? (
+                <button type="button" className="button button-dark" onClick={(e) => add(p, 1, e)}>
+                  Add to cart <ShoppingBag size={16} />
+                </button>
+              ) : (
+                <Link className="button button-dark" to={`/contact?type=Professional%20pricing&product=${encodeURIComponent(p.name)}`}>
+                  {p.price == null ? 'Request pricing' : 'Enquire to purchase'} <ArrowUpRight size={16} />
+                </Link>
+              )}
+            </div>
+          )}
+          <p className="detail-note">
+            <ShieldCheck size={17} />
+            {p.professional
+              ? "Professional use only. Product use should follow the official Instructions for Use (IFU) and clinician judgment."
+              : "For children, use under adult supervision. Consult a qualified dental professional for personalized guidance."}
+          </p>
+          <Link className="text-link" to={`/contact?type=Clinical%20enquiry&product=${encodeURIComponent(p.name)}`}>
+            Ask a clinical specialist <ArrowUpRight size={15} />
+          </Link>
+        </div>
+      </section>
+      <div className="detail-subnav">
+        <a href="#overview-summary">Overview</a>
+        <a href="#overview">Clinical information</a>
+        <a href="#safety">Use & safety</a>
+        <a href="#related">Related products</a>
+      </div>
+      <section className="wrap product-source" id="overview">
+        <details className="product-information-disclosure">
+          <summary>Full product information and clinical details</summary>
+          <SourceArticle path={`/products/${p.slug}`} embedded />
+        </details>
+      </section>
+      <section className="section wrap detail-body" id="overview-summary">
+        <SectionHead
+          number="01"
+          label="PRODUCT OVERVIEW"
+          title={
+            <>
+              Designed for
+              <br />
+              <em>clinical practice.</em>
+            </>
+          }
+          copy={p.desc}
+        />
+        <div className="detail-facts">
+          <div>
+            <span>01</span>
+            <h3>Product family</h3>
+            <p>{brandText(p.family || p.category)}</p>
+          </div>
+          <div>
+            <span>02</span>
+            <h3>Intended audience</h3>
+            <p>
+              {p.professional ? "Qualified dental professionals" : p.category}
+            </p>
+          </div>
+          <div>
+            <span>03</span>
+            <h3>Availability</h3>
+            <p>
+              {p.coming ? 'Launching soon' : p.purchaseMode === 'online' && p.availableStock === 0 ? 'Sold out' : p.canBuy ? 'Available to order online' : 'Contact for availability'}
+            </p>
+          </div>
+        </div>
+      </section>
+      {p.features?.length > 0 && (
+        <section className="section detail-tint" id="technology">
+          <div className="wrap">
+            <SectionHead
+              number="02"
+              label="FORMULATION & FEATURES"
+              title={
+                <>
+                  A closer look at
+                  <br />
+                  <em>the formulation.</em>
+                </>
+              }
+              copy="Product information reproduced from the SPARK-DV catalogue. Review the official product label and IFU for complete specifications."
+            />
+            <div className="feature-list">
+              {p.features?.map((f, i) => (
+                <div className="feature-row reveal" key={f}>
+                  <span>0{i + 1}</span>
+                  <strong>{f}</strong>
+                  <ArrowUpRight size={16} />
+                </div>
+              ))}
+            </div>
+          </div>
+        </section>
+      )}
+      <section className="section wrap" id="safety">
+        <div className="safety-note">
+          <ShieldCheck size={23} />
+          <div>
+            <p className="eyebrow">USE & SAFETY</p>
+            <h2>Guidance matters.</h2>
+            <p>
+              {p.professional
+                ? "For use by qualified dental professionals only. Product usage should follow the official Instructions for Use (IFU). Clinical judgment must guide treatment decisions."
+                : "For children, use under adult supervision. Keep out of reach of children. Do not swallow. Consult a qualified dental professional."}
+            </p>
+            <p className="fineprint">
+              Individual results may vary. Refer to product labeling for
+              complete safety information.
+            </p>
+          </div>
+        </div>
+      </section>
+      {related.length > 0 && (
+        <section className="section wrap related" id="related">
+          <SectionHead
+            number="03"
+            label="EXPLORE THE RANGE"
+            title={
+              <>
+                Related <em>products.</em>
+              </>
+            }
+            link="/products"
+            linkText="All products"
+          />
+          <div className="product-grid">
+            {related.map((q) => (
+              <ProductCard key={q.slug} product={q} add={add} />
+            ))}
+          </div>
+        </section>
+      )}
+    </>
+  );
+}
+
+function Contact() {
+  const { search } = useLocation();
+  return <ContactWithGlobe key={search} search={search} />;
+}
+
+function EnquiryForm({ defaultType, defaultProduct = 'General enquiry' }) {
+  const { products } = useCatalog();
+  const [done, setDone] = useState(false),
+    [error, setError] = useState("");
+  const [type, setType] = useState(
+    defaultType ||
+    new URLSearchParams(location.search).get("type") ||
+    "Clinical enquiry",
+  );
+  useEffect(() => {
+    if (defaultType) setType(defaultType);
+  }, [defaultType]);
+  return (
+    <form
+      className="enquiry-form"
+      onSubmit={(e) => {
+        e.preventDefault();
+        setError("");
+        try {
+          const data = new FormData(e.currentTarget);
+          const body = [...data].map(([k, v]) => k + ": " + v).join("\n");
+          window.location.href =
+            "mailto:sparkdv310@gmail.com?subject=" +
+            encodeURIComponent(type) +
+            "&body=" +
+            encodeURIComponent(body);
+          setDone(true);
+        } catch {
+          setError(
+            "Unable to open your email app. Please email sparkdv310@gmail.com directly.",
+          );
+        }
+      }}
+    >
+      <h3>Let’s start a conversation.</h3>
+      <p>Complete your details to prepare an email to our team.</p>
+      <label>
+        Enquiry type
+        <select
+          name="Enquiry"
+          value={type}
+          onChange={(e) => setType(e.target.value)}
+        >
+          {[
+            "Distributor enquiry",
+            "Clinical enquiry",
+            "Sample request",
+            "Professional pricing",
+            "Demo request",
+            "School program",
+            "General contact",
+          ].map((t) => (
+            <option key={t}>{t}</option>
+          ))}
+        </select>
+      </label>
+      <div className="form-row">
+        <label>
+          Name *<input name="Name" required autoComplete="name" />
+        </label>
+        <label>
+          Company / clinic
+          <input name="Organization" autoComplete="organization" />
+        </label>
+      </div>
+      <div className="form-row">
+        <label>
+          Email *
+          <input name="Email" required type="email" autoComplete="email" />
+        </label>
+        <label>
+          Phone
+          <input name="Phone" type="tel" autoComplete="tel" />
+        </label>
+      </div>
+      <label>
+        City, State *
+        <input name="Location" required autoComplete="address-level2" />
+      </label>
+      <label>
+        Product
+        <select name="Product" defaultValue={defaultProduct}>
+          <option>General enquiry</option>
+          {products.map((p) => (
+            <option key={p.slug}>{p.name}</option>
+          ))}
+        </select>
+      </label>
+      <label>
+        Message *<textarea name="Message" rows="4" required />
+      </label>
+      <label className="consent">
+        <input name="Contact consent" type="checkbox" required value="Yes" />I
+        agree to be contacted about this enquiry.
+      </label>
+      <button className="button button-dark" type="submit">
+        Prepare email <ArrowUpRight size={17} />
+      </button>
+      <small>
+        Your email app opens for you to review and send. No enquiry is submitted
+        by this website.
+      </small>
+      {done && (
+        <p role="status">
+          Your email draft is ready to open. Send it from your email app. If it
+          did not open, contact{" "}
+          <a href="mailto:sparkdv310@gmail.com">sparkdv310@gmail.com</a>.
+        </p>
+      )}
+      {error && <p role="alert">{error}</p>}
+    </form>
+  );
+}
+
+function Policy({ path }) {
+  const data = {
+    "/privacy": [
+      "Privacy Policy",
+      "Contact our team for current privacy information.",
+    ],
+    "/terms": [
+      "Terms of Service",
+      "Terms of Service for the SPARK-DV website.",
+    ],
+    "/shipping": ["Shipping & Returns", "Shipping and returns information."],
+  }[path],
+    isUnavailable = true;
+  return (
+    <>
+      <PageHero
+        eyebrow="INFORMATION"
+        title={
+          <>
+            {data[0].split(" ")[0]}
+            <br />
+            <em>{data[0].split(" ").slice(1).join(" ")}</em>
+          </>
+        }
+        copy={data[1]}
+      />
+      <section className="section wrap policy-body">
+        <p className="policy-alert">
+          {brandText(isUnavailable
+            ? "This policy is not currently available online. Please contact SPARK-DV for current information before placing an order or sharing personal information."
+            : "Full current source text was not accessible during inspection. Approved policy copy is needed before publication.")}
+        </p>
+        <h2>{data[0]}</h2>
+        <p>For current information, contact <BrandWordmark /> directly.</p>
+        <p>
+          <a className="text-link" href="mailto:sparkdv310@gmail.com">
+            Contact <BrandWordmark /> <ArrowUpRight size={15} />
+          </a>
+        </p>
+      </section>
+    </>
+  );
+}
+function orderEnquiryHref(cart) {
+  const lines = cart.map(item => `${item.name} × ${item.qty}`);
+  const body = ["Hello SPARK-DV team,", "Please confirm current pricing and availability for:", ...lines, "", "Please share shipping and order details."];
+  return 'mailto:sparkdv310@gmail.com?subject=' + encodeURIComponent('SPARK-DV product enquiry') + '&body=' + encodeURIComponent(body.join('\n'));
+}
+function CartPage({ cart, update, remove }) {
+  const subtotal = cart.reduce((sum, item) => sum + (item.price || 0) * item.qty, 0);
+  const count = cart.reduce((sum, item) => sum + item.qty, 0);
+  const needsQuote = cart.some(item => item.price == null);
+  return <section className="spark-cart wrap">
+    <Link className="spark-cart-back" to="/products"><ArrowLeft size={16}/> Continue shopping</Link>
+    <header className="spark-cart-heading"><div><p>YOUR SELECTION</p><h1>My Cart <span>{count} {count === 1 ? 'item' : 'items'}</span></h1><p>Everything you need for your next order.</p></div><ShoppingBag size={30}/></header>
+    {cart.length ? <div className="spark-cart-layout">
+      <div className="spark-cart-items">{cart.map(item => <article className="spark-cart-item" key={item.slug}>
+        <Link className="spark-cart-image" to={`/products/${item.slug}`} aria-label={'View '+item.name}><ProductImage product={item}/></Link>
+        <div className="spark-cart-detail"><p className="spark-cart-category">{item.category}</p><Link to={`/products/${item.slug}`}><h2>{item.name}</h2></Link><p>{item.variant || item.eyebrow}</p><strong>{item.price == null ? 'Price on request' : money(item.price)+' each'}</strong>
+          <div className="spark-cart-controls"><div className="spark-cart-quantity"><button onClick={()=>update(item.slug,-1)} aria-label={`Decrease ${item.name} quantity`}><Minus size={15}/></button><span aria-live="polite">{item.qty}</span><button onClick={()=>update(item.slug,1)} aria-label={`Increase ${item.name} quantity`}><Plus size={15}/></button></div><button className="spark-cart-remove" onClick={()=>remove(item.slug)} aria-label={`Remove ${item.name}`}>Remove</button></div>
+        </div><div className="spark-cart-line-total">{item.price == null ? 'Quote required' : money(item.price * item.qty)}</div>
+      </article>)}<p className="spark-cart-help"><ShieldCheck size={18}/> Review your selection before continuing to checkout.</p></div>
+      <aside className="spark-cart-summary"><p className="spark-cart-category">ONE STEP CLOSER</p><h2>Order summary</h2><dl><div><dt>Products ({count} items)</dt><dd>{money(subtotal)}</dd></div><div><dt>GST and delivery</dt><dd>Calculated at checkout</dd></div>{needsQuote && <div><dt>Unpriced products</dt><dd>Quote required</dd></div>}</dl><div className="spark-cart-total"><span>{needsQuote?'Priced subtotal':'Product subtotal'}</span><strong>{money(subtotal)}</strong></div><p>{needsQuote?'Remove products that require a quote before online checkout.':'Your final total, including GST and delivery, appears before payment.'}</p><Link className="spark-cart-checkout" to="/checkout">Continue to checkout <ArrowRight size={18}/></Link><div className="spark-cart-payment"><ShieldCheck size={15}/>Secure Razorpay payment</div></aside>
+    </div> : <div className="spark-cart-empty"><div className="spark-cart-empty-icon"><ShoppingBag size={58} strokeWidth={1.3}/></div><p className="spark-cart-category">A FRESH START</p><h2>Your cart is waiting.</h2><p>Explore our dental products and add your essentials here.</p><Link className="spark-cart-checkout" to="/products">Explore products <ArrowRight size={18}/></Link></div>}
+  </section>;
+}
+function NotFound() {
+  return (
+    <div className="section wrap not-found">
+      <p className="eyebrow">404 / NOT FOUND</p>
+      <h1>
+        This page is
+        <br />
+        <em>out of reach.</em>
+      </h1>
+      <Link className="button button-dark" to="/">
+        Return home <ArrowRight size={16} />
+      </Link>
+    </div>
+  );
+}
+export default App;

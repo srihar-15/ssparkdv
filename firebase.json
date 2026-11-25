@@ -1,0 +1,42 @@
+{
+  "hosting": [
+    {
+      "target": "store",
+      "public": "dist/store",
+      "rewrites": [
+        { "source": "/api/**", "run": { "serviceId": "sparkdv-api", "region": "asia-south1", "pinTag": true } },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    },
+    {
+      "target": "admin",
+      "public": "dist/admin",
+      "rewrites": [
+        { "source": "/api/**", "run": { "serviceId": "sparkdv-api", "region": "asia-south1", "pinTag": true } },
+        { "source": "**", "destination": "/index.html" }
+      ]
+    }
+  ],
+  "firestore": [{ "database": "commerce", "rules": "firestore.rules", "indexes": "firestore.indexes.json" }],
+  "storage": { "target": "media", "rules": "storage.rules" },
+  "emulators": {
+    "auth": { "host": "127.0.0.1", "port": 9100 },
+    "firestore": { "host": "127.0.0.1", "port": 8081 },
+    "storage": { "host": "127.0.0.1", "port": 9198 },
+    "ui": { "enabled": true, "port": 4001 }
+  },
+  "auth": {
+    "providers": {
+      "emailPassword": true,
+      "googleSignIn": {
+        "oAuthBrandDisplayName": "SPARK-DV",
+        "supportEmail": "dealatecorp@gmail.com",
+        "authorizedRedirectUris": [
+          "https://spark-dv-dealatecorp.firebaseapp.com/__/auth/handler",
+          "https://sparkdv-admin-cart.dealatecorp.chatgpt.site",
+          "http://localhost"
+        ]
+      }
+    }
+  }
+}

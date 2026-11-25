@@ -1,0 +1,15 @@
+.staff-login{min-height:100vh;display:grid;place-items:center;padding:24px;background:radial-gradient(ellipse at 18% 15%,#1d3d67 0,transparent 38%),#071a40;color:#102044;font-family:'DM Sans',system-ui,sans-serif}.staff-login-card{width:min(100%,430px);padding:38px;background:#fff;border:1px solid #e4e9f0;border-radius:18px;box-shadow:0 24px 80px #020c2180}.staff-login-mark{width:48px;height:48px;display:grid;place-items:center;border-radius:13px;background:#eaf1fb;color:#163c70}.staff-login-eyebrow{margin:23px 0 8px;color:#61758f;font-size:11px;font-weight:700;letter-spacing:.17em}.staff-login-card h1{margin:0;color:#101f43;font-size:30px;letter-spacing:-.04em}.staff-login-copy{margin:9px 0 26px;color:#66758c;font-size:14px;line-height:1.6}.staff-login-card form{display:grid;gap:9px}.staff-login-card label{margin-top:8px;color:#283a58;font-size:12px;font-weight:650}.staff-login-card input{width:100%;height:46px;padding:0 13px;border:1px solid #d8e0ea;border-radius:8px;background:#fff;color:#122348;font:inherit;outline:none}.staff-login-card input:focus{border-color:#315c98;box-shadow:0 0 0 3px #315c9820}.staff-login-card button{height:47px;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:9px;border:0;border-radius:8px;background:#0b2550;color:#fff;font:650 14px 'DM Sans',system-ui,sans-serif;cursor:pointer}.staff-login-card button:hover{background:#173966}.staff-login-card button:disabled{opacity:.65;cursor:wait}.staff-login-error{margin:5px 0 0;color:#b42318;font-size:13px}.staff-login-foot{display:flex;justify-content:center;align-items:center;gap:7px;margin:22px 0 0;color:#738198;font-size:11px}@media(max-width:480px){.staff-login-card{padding:28px 22px}}
+
+.staff-password-field { position: relative; }
+.staff-password-field input { padding-right: 68px; }
+.staff-login-card .staff-password-toggle {
+  position: absolute;
+  top: 1px;
+  right: 2px;
+  height: 44px;
+  margin: 0;
+  padding: 0 12px;
+  background: transparent;
+  color: #244d80;
+}
+.staff-password-toggle:focus-visible { outline: 2px solid #315c98; outline-offset: -4px; }
